@@ -10,6 +10,7 @@ TEST_CASE("A") {
 
 // default added item has a static bool state
 // static 的 test_list 可以在函数外进行下面这个操作吗：不可以
+// 那就利用类的构造函数来进行一些类似以下的这个操作
 test_list += auto TEST_CASE_A() {
 	// do A_something
 	static Section section_A_1(condition); // register a son in father Section by the condition reference. But here has a problem: because where to find the top level condition?
