@@ -10,7 +10,7 @@ class Section {
 public:
 	Section(Condition& condition)
 	{
-		// todo
+		condition.correspondSection._subSections.emplace_back(this);
 	}
 	bool state()
 	{
@@ -38,6 +38,7 @@ private:
 class Condition {
 	// should also know the tree relationship(means share)
 public:
+	Section& correspondSection;
 	Condition()
 	: _section(nullptr)
 	{
@@ -45,33 +46,30 @@ public:
 	}
 
 	Condition(Section& section)
-		: _correspondSection(section)
+		: correspondSection(section)
 	{}
 
 	operator bool()
 	{
-		return _correspondSection.state();
+		return correspondSection.state();
 	}
 
 	~Condition()
 	{
 		// means it's leaf
-		if (_correspondSection._subSections.size() == 0)
+		if (correspondSection._subSections.size() == 0)
 		{
-			_correspondSection.markDone();
+			correspondSection.markDone();
 		}
 	}
 
-private:
-	Section& _correspondSection;
-	std::std::vector<Section*>& _subSections;
 };
 
 static std::vector<std::pair<Condition, std::function<void(Condition&)>>> tests{};
 
 class RegisterTestCase {
 public:
-	RegisterTestCase(const std::function<void(Condition&)> testCase // the const maybe not right
+	RegisterTestCase(const std::function<void(Condition&)> testCase) // the const maybe not right
 	{
 		tests.emplace_back(std::make_pair(Condition{}, testCase));
 	}
