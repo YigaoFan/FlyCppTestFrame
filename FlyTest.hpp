@@ -6,6 +6,7 @@
 
 class Condition;
 class Section {
+	friend class Conditon;
 public:
 	Section(Condition& condition)
 	{
@@ -55,7 +56,7 @@ public:
 	~Condition()
 	{
 		// means it's leaf
-		if (_subSections.size() == 0)
+		if (_correspondSection._subSections.size() == 0)
 		{
 			_correspondSection.markDone();
 		}
@@ -70,7 +71,7 @@ static std::vector<std::pair<Condition, std::function<void(Condition&)>>> tests{
 
 class RegisterTestCase {
 public:
-	RegisterTestCase(std::function<void(Condition&)> testCase)
+	RegisterTestCase(const std::function<void(Condition&)> testCase // the const maybe not right
 	{
 		tests.emplace_back(std::make_pair(Condition{}, testCase));
 	}
@@ -84,7 +85,9 @@ static RegisterTestCase testCase = (std::function<void(Condition&)>)[] (Conditio
 	}
 };
 
-static bool allTest()
+static
+bool
+allTest()
 {
 	for (auto& t : tests) {
 		while (!t.first) { // t is false means t is not complete
