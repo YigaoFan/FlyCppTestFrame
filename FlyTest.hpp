@@ -71,6 +71,7 @@ class RegisterTestCase {
 public:
 	RegisterTestCase(const std::function<void(Condition&)> testCase) // the const maybe not right
 	{
+		// Here exist a problem
 		tests.emplace_back(std::make_pair(Condition{}, testCase));
 	}
 };
