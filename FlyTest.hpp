@@ -25,12 +25,17 @@ public:
 		return true;
 	}
 
+	void markDone()
+	{
+		_selfDone = true;
+	}
 private:
 	std::vector<Section*> _subSections;
 	bool _selfDone{ false };
 };
 
 class Condition {
+	// should also know the tree relationship(means share)
 public:
 	Condition()
 	: _section(nullptr)
@@ -39,17 +44,26 @@ public:
 	}
 
 	Condition(Section& section)
-		: _section(section)
+		: _correspondSection(section)
 	{}
 
 	operator bool()
 	{
-		return _section.state();
+		return _correspondSection.state();
+	}
+
+	~Condition()
+	{
+		// means it's leaf
+		if (_subSections.size() == 0)
+		{
+			_correspondSection.markDone();
+		}
 	}
 
 private:
-	Section& _section;
-
+	Section& _correspondSection;
+	std::std::vector<Section*>& _subSections;
 };
 
 static std::vector<std::pair<Condition, std::function<void(Condition&)>>> tests{};
@@ -66,7 +80,7 @@ static RegisterTestCase testCase = (std::function<void(Condition&)>)[] (Conditio
 	std::vector<int> a;
 	a.push_back(1);
 	static Section section{condition}; if (Condition condition = section) {
-
+		// How to return?
 	}
 };
 
