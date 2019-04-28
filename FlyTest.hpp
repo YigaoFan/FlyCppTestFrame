@@ -6,12 +6,10 @@
 
 class Condition;
 class Section {
-	friend class Conditon;
+	friend class Condition;
 public:
-	Section(Condition& condition)
-	{
-		condition.correspondSection._subSections.emplace_back(this);
-	}
+	Section(Condition& condition);
+
 	bool state()
 	{
 		if (_subSections.size() == 0) {
@@ -39,11 +37,11 @@ class Condition {
 	// should also know the tree relationship(means share)
 public:
 	Section& correspondSection;
-	Condition()
-	: _section(nullptr)
-	{
-
-	}
+//	Condition()
+//	: _section(nullptr)
+//	{
+//
+//	}
 
 	Condition(Section& section)
 		: correspondSection(section)
@@ -64,6 +62,11 @@ public:
 	}
 
 };
+
+Section::Section(Condition &condition)
+{
+	condition.correspondSection._subSections.emplace_back(this);
+}
 
 static std::vector<std::pair<Condition, std::function<void(Condition&)>>> tests{};
 
