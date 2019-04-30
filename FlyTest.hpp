@@ -2,48 +2,89 @@
 
 #include <functional>
 #include <vector>
-#include <utility>
+#include <exception>
+using std::runtime_error;
 
 class Condition;
 class Section {
 	friend class Condition;
 public:
 	Section(Condition& condition);
-	Section(bool state)
-	: _state(state){}
+	Section(bool& state) : _state(state), _father(nullptr)
+	{}
 
 	bool state()
 	{
-		if (_subSections.empty()) {
-			return _selfDone;
+		if (_state) {
+			// if this call end, no branch need to be run.
+			return true;
+		} else {
+			return allBranchDone();
 		}
-		// else traverse the sub-tree
-		for (auto s : _subSections) {
-			if (!s->state()) {
-				return false;
-			}
-		}
-		return true;
 	}
 
 	bool allBranchDone()
 	{
+		return _selfDone;
+//		if (_selfDone) {
+//			return true;
+//		}
+//		return false;
 		for (auto s : _subSections) {
-			if (!s->state()) {
+			if (!s->allBranchDone()) {
+#ifdef _NOEXCEPT_DEBUG
+				if (_selfDone) {
+					throw runtime_error
+						("When a sub branch is not done, _selfDone of current branch is not be set to false");
+				}
+#endif
 				return false;
 			}
 		}
+#ifdef _NOEXCEPT_DEBUG
+		if (_selfDone) {
+			throw runtime_error
+				("When all sub branches are done, _selfDone of current branch is not be set to true");
+		}
+#endif
 		return true;
 	}
 
 	void markDone()
 	{
 		_selfDone = true;
+		if (_father != nullptr) {
+			_father->checkSelfStatus();
+		}
 	}
+
+	void checkSelfStatus()
+	{
+		auto subStatus{true};
+		for (const auto &s : _subSections) {
+			subStatus &= s->allBranchDone();
+		}
+
+		if (subStatus) {
+			markDone();
+		}
+	}
+
+	void turnOffState()
+	{
+		_state = true;
+	}
+
+	void turnOnState()
+	{
+		_state = false;
+	}
+
 private:
-	std::vector<Section*> _subSections;
 	bool _selfDone{ false };
-	bool& _state; // just represent once call end or not
+	bool& _state;
+	Section* const _father;
+	std::vector<Section*> _subSections;
 };
 
 class Condition {
@@ -56,7 +97,8 @@ public:
 
 	operator bool()
 	{
-		return correspondSection.state();
+		// ! to let it fit the if condition
+		return !correspondSection.state();
 	}
 
 	~Condition()
@@ -65,21 +107,26 @@ public:
 		if (correspondSection._subSections.empty())
 		{
 			correspondSection.markDone();
+			correspondSection.turnOffState();
 		}
 	}
 
 };
 
 Section::Section(Condition &condition)
+	: _state(condition.correspondSection._state),
+	_father(&condition.correspondSection)
 {
+	// register sub-section
 	condition.correspondSection._subSections.emplace_back(this);
+
 }
 
 static std::vector<std::function<void(Condition&)>> _tests{};
 
 class RegisterTestCase {
 public:
-	RegisterTestCase(const std::function<void(Condition&)> testCase) // the const maybe not right
+	RegisterTestCase(std::function<void(Condition&)> testCase) // the const maybe not right
 	{
 		// Here exist a problem
 		_tests.emplace_back(testCase);
@@ -87,27 +134,29 @@ public:
 };
 
 // example
-static RegisterTestCase testCase = (std::function<void(Condition&)>)[] (Condition& condition) {
-	// do something
-	std::vector<int> a;
-	a.push_back(1);
-
-	static Section section1{ condition }; if (Condition condition = section1) {
-		// How to return?
-	}
-};
+//static RegisterTestCase testCase = (std::function<void(Condition&)>)[] (Condition& condition) {
+//	// do something
+//
+//	static Section section1{ condition }; if (Condition condition = section1) {
+//		// How to return?
+//	}
+//};
 
 static
-bool
+void
 allTest()
 {
 	for (auto& t : _tests) {
-		bool state = false;
-		Section testFunc{ state };
+		auto _funcState = false;
+		Section testFunc{ _funcState };
 		Condition condition{ testFunc };
 		while (!testFunc.allBranchDone()) { // t is false means t is not complete
 			t(condition);
-			state = false; // call once will set the state to true
+			testFunc.turnOnState(); // call once will set the _funcState to true
 		}
 	}
 }
+
+#define TESTCASE(DESCRIPTION) static RegisterTestCase testcase##__LINE__ = (std::function<void(Condition&)>)[] (Condition& condition)
+
+#define SECTION(DESCRIPTION) static Section section##__LINE__ { condition }; if (Condition condtion = section##__LINE__)
