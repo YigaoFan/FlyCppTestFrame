@@ -25,14 +25,9 @@ public:
 
 	bool allBranchDone()
 	{
-		return _selfDone;
-//		if (_selfDone) {
-//			return true;
-//		}
-//		return false;
 		for (auto s : _subSections) {
 			if (!s->allBranchDone()) {
-#ifdef _NOEXCEPT_DEBUG
+#ifdef FALSE
 				if (_selfDone) {
 					throw runtime_error
 						("When a sub branch is not done, _selfDone of current branch is not be set to false");
@@ -41,21 +36,21 @@ public:
 				return false;
 			}
 		}
-#ifdef _NOEXCEPT_DEBUG
+#ifdef FALSE
 		if (_selfDone) {
 			throw runtime_error
 				("When all sub branches are done, _selfDone of current branch is not be set to true");
 		}
 #endif
-		return true;
+		return _selfDone; // this maybe have some problem
 	}
 
 	void markDone()
 	{
 		_selfDone = true;
-		if (_father != nullptr) {
-			_father->checkSelfStatus();
-		}
+//		if (_father != nullptr) {
+//			_father->checkSelfStatus();
+//		}
 	}
 
 	void checkSelfStatus()
