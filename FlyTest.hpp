@@ -157,6 +157,9 @@ allTest()
 	}
 }
 
-#define TESTCASE(DESCRIPTION) static RegisterTestCase testcase##__LINE__ = (std::function<void(Condition&)>)[] (Condition& condition)
+#define PRIMITIVE_CAT(A, B) A##B
+#define CAT(A, B) PRIMITIVE_CAT(A, B)
 
-#define SECTION(DESCRIPTION) static Section section##__LINE__ { condition }; if (Condition condtion = section##__LINE__)
+#define TESTCASE(DESCRIPTION) static RegisterTestCase CAT(testcase, __LINE__) = (std::function<void(Condition&)>)[] (Condition& condition)
+
+#define SECTION(DESCRIPTION) static Section CAT(section, __LINE__) { condition }; if (Condition condtion = CAT(section, __LINE__) )
