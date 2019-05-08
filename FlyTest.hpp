@@ -7,14 +7,17 @@ using std::runtime_error;
 
 class Condition;
 class Section {
+	// Section don't have the data detail rely on Condition class, but Condition do.
+	// So we can pass a condition as parameter in TESTCASE not reference without error
 	friend class Condition;
 public:
 	Section(Condition& condition);
-	Section(bool& state) : _state(state), _father(nullptr)
+	Section() : _father(nullptr)
 	{}
 
 	bool state()
 	{
+		// TODO below code should be reduce
 		if (_state) {
 			// if this call end, no branch need to be run.
 			return true;
@@ -40,42 +43,33 @@ public:
 	void markDone()
 	{
 		_selfDone = true;
-		//		if (_father != nullptr) {
-		//			_father->checkSelfStatus();
-		//		}
 	}
 
-//	void checkSelfStatus()
-//	{
-//		auto subStatus{ true };
-//		for (const auto &s : _subSections) {
-//			subStatus &= s->allBranchDone();
-//		}
-//
-//		if (subStatus) {
-//			markDone();
-//		}
-//	}
+	// void turnOffState() const
+	// {
+	// 	_state = true;
+	// }
+	//
+	// void turnOnState() const
+	// {
+	// 	_state = false;
+	// }
 
-	void turnOffState() const
+	bool subSectionEmpty() const
 	{
-		// TODO why this member function can be const
-		_state = true;
-	}
-
-	void turnOnState() const
-	{
-		_state = false;
+		return _subSections.empty();
 	}
 
 private:
 	bool _selfDone{ false };
-	bool& _state;
+	// bool& _state;
 	Section* const _father;
 	std::vector<Section*> _subSections;
 };
 
 class Condition {
+private:
+	bool& _state;
 public:
 	Section& correspondSection;
 
@@ -83,26 +77,31 @@ public:
 		: correspondSection(section)
 	{}
 
+	Condition(Section& section, bool& state)
+		: correspondSection(section), _state(state)
+	{}
+
 	operator bool() const
 	{
 		// ! to let it fit the if condition
-		return !correspondSection.state();
+		return !_state && !correspondSection.allBranchDone();
 	}
 
 	~Condition()
 	{
 		// means it's leaf
-		if (!correspondSection.state() && correspondSection._subSections.empty()) {
+		if (!_state && correspondSection._subSections.empty()) {
 			correspondSection.markDone();
-			correspondSection.turnOffState();
+			// correspondSection.turnOffState();
+			_state = true;
 		}
 	}
 
 };
 
 inline Section::Section(Condition &condition)
-	: _state(condition.correspondSection._state),
-	  _father(&condition.correspondSection)
+	// : _state(condition.correspondSection._state),
+	: _father(&condition.correspondSection)
 {
 	// register sub-section
 	condition.correspondSection._subSections.emplace_back(this);
@@ -134,12 +133,17 @@ void
 allTest()
 {
 	for (auto& t : _tests) {
-		auto funcState = false;
-		Section testFunc{ funcState };
-		Condition condition{ testFunc };
+		Section testFunc;
 		while (!testFunc.allBranchDone()) { // t is false means t is not complete
-			t(condition);
-			testFunc.turnOnState(); // call once will set the _funcState to true
+			auto onceState = false;
+			Condition condition{ testFunc, onceState}; // for once run
+			t(condition); // t(std::move(condition));
+			// testFunc.turnOnState(); // call once will set the _funcState to true
+
+			// for null TESTCASE:
+			// if (testFunc.subSectionEmpty()) {
+			// 	testFunc.markDone();
+			// }
 		}
 	}
 }
@@ -147,6 +151,12 @@ allTest()
 #define PRIMITIVE_CAT(A, B) A##B
 #define CAT(A, B) PRIMITIVE_CAT(A, B)
 
-#define TESTCASE(DESCRIPTION) static RegisterTestCase CAT(testcase, __LINE__) = (std::function<void(Condition&)>)[] (Condition& condition)
+#define TESTCASE(DESCRIPTION) static RegisterTestCase CAT(testcase, __LINE__) = (std::function<void(Condition)>)[] (Condition condition)
 
 #define SECTION(DESCRIPTION) static Section CAT(section, __LINE__) { condition }; if (Condition condition = CAT(section, __LINE__) )
+
+// 我希望一个 TESTCASE 有两个状态，内部有个本次执行完毕的状态，外部有个标识所有 branch 执行完的
+// 的状态
+
+// testFunc.allBranchDone() // external state
+// condition // internal state
