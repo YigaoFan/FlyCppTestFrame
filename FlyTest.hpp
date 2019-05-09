@@ -12,21 +12,20 @@ class Section {
 	friend class Condition;
 public:
 	Section(Condition& condition);
-	Section() : _father(nullptr)
-	{}
+	Section() {}
 
-	bool state()
-	{
-		// TODO below code should be reduce
-		if (_state) {
-			// if this call end, no branch need to be run.
-			return true;
-		} else {
-			return allBranchDone();
-		}
-	}
+//	bool state()
+//	{
+//		// TODO below code should be reduce
+//		if (_state) {
+//			// if this call end, no branch need to be run.
+//			return true;
+//		} else {
+//			return allBranchDone();
+//		}
+//	}
 
-	bool allBranchDone()
+	bool allBranchDone() const
 	{
 		if (_subSections.empty()) {
 			return _selfDone;
@@ -45,26 +44,14 @@ public:
 		_selfDone = true;
 	}
 
-	// void turnOffState() const
-	// {
-	// 	_state = true;
-	// }
-	//
-	// void turnOnState() const
-	// {
-	// 	_state = false;
-	// }
-
-	bool subSectionEmpty() const
-	{
-		return _subSections.empty();
-	}
+//	bool subSectionEmpty() const
+//	{
+//		return _subSections.empty();
+//	}
 
 private:
 	bool _selfDone{ false };
-	// bool& _state;
-	Section* const _father;
-	std::vector<Section*> _subSections;
+	std::vector<Section*> _subSections{};
 };
 
 class Condition {
@@ -73,10 +60,6 @@ private:
 public:
 	Section& correspondSection;
 
-	Condition(Section& section)
-		: correspondSection(section)
-	{}
-
 	Condition(Section& section, bool& state)
 		: correspondSection(section), _state(state)
 	{}
@@ -84,49 +67,46 @@ public:
 	operator bool() const
 	{
 		// ! to let it fit the if condition
-		return !_state && !correspondSection.allBranchDone();
+		if (_state) {
+			return false;
+		} else if (correspondSection.allBranchDone()){
+			return false;
+		}
+		return true;
 	}
 
 	~Condition()
 	{
-		// means it's leaf
-		if (!_state && correspondSection._subSections.empty()) {
-			correspondSection.markDone();
-			// correspondSection.turnOffState();
-			_state = true;
+		if (*this) {
+			// means it's leaf
+			if (correspondSection._subSections.empty()) {
+				correspondSection.markDone();
+				_state = true;
+			}
 		}
 	}
-
 };
 
 inline Section::Section(Condition &condition)
-	// : _state(condition.correspondSection._state),
-	: _father(&condition.correspondSection)
 {
 	// register sub-section
 	condition.correspondSection._subSections.emplace_back(this);
 
 }
 
-static std::vector<std::function<void(Condition&)>> _tests{};
+static std::vector<std::function<void(Condition, bool&)>> _tests{};
 
 class RegisterTestCase {
 public:
-	RegisterTestCase(std::function<void(Condition&)> testCase) // the const maybe not right
+	RegisterTestCase(std::function<void(Condition, bool&)> testCase) // the const maybe not right
 	{
-		// Here exist a problem
 		_tests.emplace_back(testCase);
 	}
 };
 
-// example
-//static RegisterTestCase testCase = (std::function<void(Condition&)>)[] (Condition& condition) {
-//	// do something
-//
-//	static Section section1{ condition }; if (Condition condition = section1) {
-//		// How to return?
-//	}
-//};
+class AssertionFailure {
+	// TODO some failure info
+};
 
 static
 void
@@ -136,27 +116,46 @@ allTest()
 		Section testFunc;
 		while (!testFunc.allBranchDone()) { // t is false means t is not complete
 			auto onceState = false;
-			Condition condition{ testFunc, onceState}; // for once run
-			t(condition); // t(std::move(condition));
-			// testFunc.turnOnState(); // call once will set the _funcState to true
+			try {
+				t(Condition(testFunc, onceState), onceState); // t(std::move(condition));
+			} catch (AssertionFailure f) {
+				// TODO show failure info
+			} catch (...) {
+				// report uncaught exception
+			}
 
-			// for null TESTCASE:
-			// if (testFunc.subSectionEmpty()) {
-			// 	testFunc.markDone();
-			// }
 		}
 	}
 }
-
+// 我希望一个 TESTCASE 有两个状态，内部有个本次执行完毕的状态，外部有个标识所有 branch 执行完的的状态
+// testFunc.allBranchDone() external state
+// condition internal state
 #define PRIMITIVE_CAT(A, B) A##B
 #define CAT(A, B) PRIMITIVE_CAT(A, B)
 
-#define TESTCASE(DESCRIPTION) static RegisterTestCase CAT(testcase, __LINE__) = (std::function<void(Condition)>)[] (Condition condition)
+#define TESTCASE(DESCRIPTION) static RegisterTestCase CAT(testcase, __LINE__) = (std::function<void(Condition, bool&)>)[] (Condition condition, bool& onceState)
 
-#define SECTION(DESCRIPTION) static Section CAT(section, __LINE__) { condition }; if (Condition condition = CAT(section, __LINE__) )
+#define SECTION(DESCRIPTION) static Section CAT(section, __LINE__) { condition }; if (Condition condition{ CAT(section, __LINE__) , onceState })
 
-// 我希望一个 TESTCASE 有两个状态，内部有个本次执行完毕的状态，外部有个标识所有 branch 执行完的
-// 的状态
+#define ASSERT(EXP) 		\
+		try {				\
 
-// testFunc.allBranchDone() // external state
-// condition // internal state
+		}
+
+#define ASSERT_THROW(TYPE, EXP)
+
+template <typename T>
+void
+func()
+{
+	try {
+
+	} catch (T e) {
+
+	}
+
+	// no exception caught
+}
+
+
+
