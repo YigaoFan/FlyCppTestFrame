@@ -1,9 +1,20 @@
+#include <utility>
+
 #pragma once
 
 #include <functional>
 #include <vector>
-#include <exception>
-using std::runtime_error;
+#include <string>
+#include <tuple>
+#include <iostream>
+using std::string;
+using std::vector;
+using std::tuple;
+using std::make_tuple;
+using std::cout;
+using std::endl;
+using std::ostream;
+using std::flush;
 
 class Condition;
 class Section {
@@ -94,7 +105,7 @@ inline Section::Section(Condition &condition)
 
 }
 
-static std::vector<std::function<void(Condition, bool&)>> _tests{};
+static vector<std::function<void(Condition, bool&)>> _tests{};
 
 class RegisterTestCase {
 public:
@@ -106,6 +117,85 @@ public:
 
 class AssertionFailure {
 	// TODO some failure info
+private:
+	string _expression;
+	string _fileName;
+	int16_t _line;
+public:
+	AssertionFailure(string expression, string fileName, int16_t line)
+		: _expression(std::move(expression)), _fileName(std::move(fileName)), _line(line)
+	{}
+
+	string fileName() const
+	{
+		return _fileName;
+	}
+
+	int16_t line() const
+	{
+		return _line;
+	}
+};
+
+class SectionRouteTrack {
+private:
+	vector<tuple<string, int16_t, string>> _previousRoutePart{};
+	tuple<string, int16_t, string> _currentSection;
+	bool _currentSectionValid{ false };
+public:
+	SectionRouteTrack() = default;
+
+	void append(const string& fileName, int16_t line, const string& sectionName)
+	{
+		if (_currentSectionValid) {
+			_previousRoutePart.emplace_back(_currentSection);
+		}
+		_currentSection = std::move(make_tuple(fileName, line, sectionName));
+		_currentSectionValid = true;
+	}
+
+	void log(int8_t initialIndentation = 0, ostream& out = cout) const
+	{
+		out << "Testcase state: \n";
+
+		if (!_currentSectionValid) { return; }
+
+		for (const auto &s : _previousRoutePart) {
+			showNSpace(initialIndentation, out);
+			showSectionInfo(s, out) << endl;
+			++initialIndentation;
+		}
+		showNSpace(initialIndentation, out) << "-> ";
+		showSectionInfo(_currentSection, out) << endl;
+	}
+
+private:
+	static ostream& showNSpace(int8_t num, ostream& out)
+	{
+		for (auto i = 0; i < num; ++i) {
+			out << ' ';
+		}
+		out.flush();
+		return out;
+	}
+
+	static ostream& showSectionInfo(decltype(_currentSection) sectionInfo, ostream& out)
+	{
+		for (auto i = 0; i < 3; ++i) {
+			out
+			<< std::get<0>(sectionInfo) << ": "
+			<< std::get<1>(sectionInfo) << ": "
+			<< std::get<2>(sectionInfo);
+		}
+		out.flush();
+		return out;
+	}
+
+//	void reset()
+//	{
+//		_previousRoutePart.clear();
+//		_currentSectionValid = false;
+//	}
 };
 
 static
@@ -116,6 +206,7 @@ allTest()
 		Section testFunc;
 		while (!testFunc.allBranchDone()) { // t is false means t is not complete
 			auto onceState = false;
+			SectionRouteTrack currentSectionTrack;
 			try {
 				t(Condition(testFunc, onceState), onceState); // t(std::move(condition));
 			} catch (AssertionFailure f) {
@@ -136,26 +227,21 @@ allTest()
 #define TESTCASE(DESCRIPTION) static RegisterTestCase CAT(testcase, __LINE__) = (std::function<void(Condition, bool&)>)[] (Condition condition, bool& onceState)
 
 #define SECTION(DESCRIPTION) static Section CAT(section, __LINE__) { condition }; if (Condition condition{ CAT(section, __LINE__) , onceState })
+// below __FILE__ and __LINE__ maybe used wrong
 
-#define ASSERT(EXP) 		\
-		try {				\
+#define ASSERT(EXP) do { if (!(EXP)) { throw AssertionFailure(#EXP, __FILE__ , __LINE__ ); } } while(0)
 
-		}
+// how to rethrow this exption?
+#define ASSERT_THROW(TYPE, EXP) 	\
+	do {                        	\
+    	try {                   	\
+			(EXP);              	\
+    	} catch (TYPE e) { }    	\
+		  catch (...) { throw; }	\
+		throw;						\
+	} while(0)
 
-#define ASSERT_THROW(TYPE, EXP)
 
-template <typename T>
-void
-func()
-{
-	try {
-
-	} catch (T e) {
-
-	}
-
-	// no exception caught
-}
 
 
 
