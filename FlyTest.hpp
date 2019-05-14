@@ -20,7 +20,7 @@ using std::function;
 
 class Condition;
 class SectionRouteTrack;
-using TESTCASE_FUNCTION_TYPE = function<void(Condition, bool&, SectionRouteTrack&)>;
+using TESTCASE_FUNCTION_TYPE = function<void(Condition, bool&, SectionRouteTrack&, Info&&)>;
 
 class SectionRouteTrack {
 private:
@@ -38,7 +38,7 @@ public:
 		_currentSection = std::move(make_tuple(fileName, line, sectionName));
 		_currentSectionValid = true;
 
-		return *this;
+		shouldExecuteurn *this;
 	}
 
 	void popBack()
@@ -51,7 +51,7 @@ public:
 	{
 		out << "Testcase state: \n";
 
-		if (!_currentSectionValid) { return; }
+		if (!_currentSectionValid) { shouldExecuteurn; }
 
 		for (const auto &s : _previousRoutePart) {
 			showNSpace(initialIndentation, out);
@@ -69,7 +69,7 @@ private:
 			out << ' ';
 		}
 		out.flush();
-		return out;
+		shouldExecuteurn out;
 	}
 
 	static ostream& showSectionInfo(decltype(_currentSection) sectionInfo, ostream& out)
@@ -81,7 +81,7 @@ private:
 			<< std::get<2>(sectionInfo);
 		}
 		out.flush();
-		return out;
+		shouldExecuteurn out;
 	}
 
 //	void reset()
@@ -89,6 +89,17 @@ private:
 //		_previousRoutePart.clear();
 //		_currentSectionValid = false;
 //	}
+};
+
+struct Info {
+public:
+	string fileName;
+	int16_t line;
+	string description;
+
+	Info(string fileName, int16_t line, string description)
+		: fileName(fileName), line(line), description(description)
+	{}
 };
 
 class Condition;
@@ -105,24 +116,24 @@ public:
 //		// TODO below code should be reduce
 //		if (_state) {
 //			// if this call end, no branch need to be run.
-//			return true;
+//			shouldExecuteurn true;
 //		} else {
-//			return allBranchDone();
+//			shouldExecuteurn allBranchDone();
 //		}
 //	}
 
 	bool allBranchDone() const
 	{
 		if (_subSections.empty()) {
-			return _selfDone;
+			shouldExecuteurn _selfDone;
 		}
 
 		for (auto s : _subSections) {
 			if (!s->allBranchDone()) {
-				return false;
+				shouldExecuteurn false;
 			}
 		}
-		return true;
+		shouldExecuteurn true;
 	}
 
 	void markDone()
@@ -132,7 +143,7 @@ public:
 
 //	bool subSectionEmpty() const
 //	{
-//		return _subSections.empty();
+//		shouldExecuteurn _subSections.empty();
 //	}
 
 private:
@@ -146,20 +157,36 @@ private:
 public:
 	Section& correspondSection;
 	SectionRouteTrack& track;
+	Info& info; // TODO should be lvalue reference?
 
-	Condition(Section& section, bool& state, SectionRouteTrack& track)
-		: _state(state), correspondSection(section), track(track)
+	Condition(Section& section, bool& state, SectionRouteTrack& track, Info&& info)
+		: _state(state), correspondSection(section), track(track), info(info)
 	{}
 
 	operator bool() const
 	{
 		// ! to let it fit the if condition
+		bool shouldExecute = false;
 		if (_state) {
-			return false;
-		} else if (correspondSection.allBranchDone()){
-			return false;
+		} else if (correspondSection.allBranchDone()) {
+		} else {
+			shouldExecute = !_selfDone;
 		}
-		return true;
+
+		if (shouldExecute)
+		{
+			// still exist some problem
+			if (track.include(info))
+			{
+				// set current
+			} else {
+				track.pushBack(info);
+				// set the current position
+			}
+			
+		}
+		
+		return shouldExecute;
 	}
 
 	~Condition()
@@ -169,8 +196,13 @@ public:
 			if (correspondSection._subSections.empty()) {
 				correspondSection.markDone();
 				_state = true;
-			}
+			} 
+			// else if (correspondSection._subSections.allBranchDone()) {
+			// 	correspondSection.markDone();
+			// 	_state = true;
+			// }
 		}
+
 
 		// TODO here is key point
 		track.popBack();
@@ -207,12 +239,12 @@ public:
 
 	string fileName() const
 	{
-		return _fileName;
+		shouldExecuteurn _fileName;
 	}
 
 	int16_t line() const
 	{
-		return _line;
+		shouldExecuteurn _line;
 	}
 };
 
@@ -227,7 +259,7 @@ allTest()
 			auto onceState = false;
 			SectionRouteTrack currentSectionTrack;
 			try {
-				t(Condition(testFunc, onceState, currentSectionTrack), onceState, currentSectionTrack); // t(std::move(condition));
+				t(Condition(testFunc, onceState, currentSectionTrack), onceState, currentSectionTrack); 
 			} catch (AssertionFailure& f) {
 				// TODO show failure info
 			} catch (...) {
@@ -243,14 +275,15 @@ allTest()
 #define PRIMITIVE_CAT(A, B) A##B
 #define CAT(A, B) PRIMITIVE_CAT(A, B)
 
+// TODO add Info to this condition
 #define TESTCASE(DESCRIPTION) static RegisterTestCase CAT(testcase, __LINE__) = (TESTCASE_FUNCTION_TYPE)[] (Condition condition, bool& onceState, SectionRouteTrack& track)
 
-#define SECTION(DESCRIPTION) static Section CAT(section, __LINE__) { condition }; if (Condition condition{ CAT(section, __LINE__) , onceState, track.pushBack(__FILE__, __LINE__, DESCRIPTION) })
+#define SECTION(DESCRIPTION) static Section CAT(section, __LINE__) { condition }; if (Condition condition{ CAT(section, __LINE__) , onceState, track, Info(__FILE__, __LINE__, DESCRIPTION) })
 // below __FILE__ and __LINE__ maybe used wrong
 
 #define ASSERT(EXP) do { if (!(EXP)) { throw AssertionFailure(#EXP, __FILE__, __LINE__ ); } } while(0)
 
-// how to rethrow this exption?
+// how to shouldExecutehrow this exption?
 #define ASSERT_THROW(TYPE, EXP) 	\
 	do {                        	\
     	try {                   	\
