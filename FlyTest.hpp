@@ -1,5 +1,3 @@
-#include <utility>
-
 #pragma once
 
 #include <functional>
@@ -31,10 +29,6 @@ public:
 	string description;
 
 	Info() = default;
-
-	Info(tuple<string, int16_t, string> t)
-		: fileName(std::get<0>(t)), line(std::get<1>(t)), description(std::get<2>(t))
-	{}
 
 	Info(string fileName, int16_t line, string description)
 		: fileName(std::move(fileName)), line(line), description(std::move(description))
@@ -179,7 +173,7 @@ public:
 		{
 			track.pushBack(correspondSection.info());
 		}
-		
+
 		return _shouldExecute;
 	}
 
@@ -282,6 +276,7 @@ allTest()
 				// TODO show failure info
 			} catch (...) {
 				// TODO report uncaught exception
+				// __cxa_current_exception_type() – > name()
 			}
 		}
 	}
@@ -309,8 +304,3 @@ allTest()
 		  catch (...) { throw; }	\
 		throw;						\
 	} while(0)
-
-
-
-
-
