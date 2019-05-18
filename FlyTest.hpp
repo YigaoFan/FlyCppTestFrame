@@ -262,15 +262,15 @@ public:
 
 class AssertionFailure : std::exception {
 private:
-	string failureInfo;
+	string _failureInfo;
 public:
 	AssertionFailure(const string &fileName, int16_t line, const string &description, const string &expression)
-		: failureInfo(fileName + ":" + std::to_string(line) + description + '\n' + expression)
+		: _failureInfo(fileName + ":" + std::to_string(line) + " " + description + "\n" + expression)
 	{}
 
 	const char* what() const noexcept override
 	{
-		return failureInfo.c_str();
+		return _failureInfo.c_str();
 	}
 };
 
@@ -296,7 +296,9 @@ allTest()
 			try {
 				t.second(Condition(testFunc, onceState, sectionTrack), onceState, sectionTrack);
 			} catch (std::exception& e) {
-				log(typeid(e).name(), e.what(), sectionTrack);
+				log(string{typeid(e).name()}, string{e.what()}, sectionTrack);
+			} catch (AssertionFailure& e) {
+				log(string{typeid(e).name()}, string{e.what()}, sectionTrack);
 			} catch (int i) {
 				log("int", std::to_string(i), sectionTrack);
 			} catch (...) {
@@ -328,13 +330,14 @@ allTest()
 	do {                        														\
     	try {																			\
 			(EXP);																		\
+			throw AssertionFailure(__FILE__, __LINE__, "No exception caught in", #EXP);	\
     	} catch (TYPE e) { }															\
+		  catch (AssertionFailure& e) { throw e; }										\
 		  catch (...) {																	\
     		throw AssertionFailure(														\
     			__FILE__, 																\
     			__LINE__, 																\
-    			string{"Catch a exception but not meet the required type "} + #TYPE, 	\
+    			string{"Catch a exception but not meet the required type: "} + #TYPE, 	\
     			#EXP);																	\
     	}																				\
-		throw AssertionFailure(__FILE__, __LINE__, "No exception caught in", #EXP);		\
 	} while(0)
