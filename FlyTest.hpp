@@ -7,6 +7,17 @@
 #include <iostream>
 #include <utility>
 
+// for unknown exception handle
+#ifdef __clang__
+#include "cxxabi.h"
+#define DEPEND_ON_COMPILER_SUPPORT(SUPPORT_DO, NOT_SUPPORT_DO) SUPPORT_DO
+#elif __GNUC__
+#include "cxxabi.h"
+#define DEPEND_ON_COMPILEER_SUPPORT(SUPPORT_DO, NOT_SUPPORT_DO) SUPPORT_DO
+#else
+#define DEPEND_ON_COMPILER_SUPPORT(SUPPORT_DO, NOT_SUPPORT_DO) NOT_SUPPORT_DO
+#endif
+
 using std::pair;
 using std::make_pair;
 using std::string;
@@ -18,6 +29,7 @@ using std::endl;
 using std::ostream;
 using std::flush;
 using std::function;
+using std::runtime_error;
 
 class SectionRouteTrack;
 class Condition;
@@ -37,49 +49,41 @@ public:
 
 class SectionRouteTrack {
 private:
-	vector<Info> _previousRoutePart{};
-	Info _currentSection;
-	bool _currentSectionValid{ false };
+	vector<Info> _route{};
+	int16_t _currentSectionIndex = -1;
+//	bool _currentSectionValid{ false };
 public:
 	SectionRouteTrack() = default;
 
 	SectionRouteTrack& pushBack(Info info)
 	{
-		if (_currentSectionValid) {
-			_previousRoutePart.emplace_back(_currentSection);
-		}
-		_currentSection = std::move(info);
-		_currentSectionValid = true;
+		_route.emplace_back(std::move(info));
+		_currentSectionIndex = _route.size() - 1;
 
 		return *this;
 	}
 
-	void popBack()
+	void moveBack()
 	{
-		_currentSection = std::move(_previousRoutePart.back());
-		_previousRoutePart.pop_back();
+		--_currentSectionIndex;
 	}
 
-	void log(int8_t initialIndentation = 0, ostream& out = cout) const
+	void log(int8_t initialIndent = 0, ostream& out = cout) const
 	{
-		out << "Testcase state: \n";
-
-		if (!_currentSectionValid) { return; }
-
-		for (const auto &s : _previousRoutePart) {
-			showNSpace(initialIndentation, out);
-			showSectionInfo(s, out) << endl;
-			++initialIndentation;
+		if (_currentSectionIndex < 0) {
+			throw runtime_error("Wrong invoke log, only need to call log when SECTION doesn't exit normally");
 		}
-		showNSpace(initialIndentation, out) << "-> ";
-		showSectionInfo(_currentSection, out) << endl;
+
+		for (auto i = 0; i < _route.size(); ++i) {
+			showNSpace(initialIndent, out);
+			if (i == _currentSectionIndex) {
+					out << "-> ";
+			}
+			showSectionInfo(_route[i], out) << endl;
+			++initialIndent;
+		}
 	}
 
-	void reset()
-	{
-		_previousRoutePart.clear();
-		_currentSectionValid = false;
-	}
 private:
 	static ostream& showNSpace(int8_t num, ostream& out)
 	{
@@ -90,14 +94,13 @@ private:
 		return out;
 	}
 
-	static ostream& showSectionInfo(decltype(_currentSection) sectionInfo, ostream& out)
+	static ostream& showSectionInfo(const Info& sectionInfo, ostream& out)
 	{
-		for (auto i = 0; i < 3; ++i) {
-			out
+		out
 			<< sectionInfo.fileName << ": "
 			<< sectionInfo.line << ": "
 			<< sectionInfo.description;
-		}
+
 		out.flush();
 		return out;
 	}
@@ -188,10 +191,28 @@ public:
 			if (!correspondSection._selfDone && _allBranchDoneBeforeExecute) {
 				correspondSection.markDone();
 			}
-		}
 
-		// TODO here is key point
-//		track.popBack();
+			if constexpr (__cplusplus == 201703L) {
+				if (std::uncaught_exceptions()) {
+					// stop move mark
+				} else {
+					track.moveBack();
+				}
+			} else if constexpr (__cplusplus >= 201103L) {
+				if (std::uncaught_exception()) {
+					// stop move mark
+				} else {
+					track.moveBack();
+				}
+			} else {
+				// TODO meta-program?
+				// could use macro
+				throw
+					runtime_error
+						("This program require C++ version at least C++11, please update your compiler setting");
+			}
+
+		}
 	}
 };
 
@@ -239,24 +260,17 @@ public:
 	}
 };
 
-class AssertionFailure {
+class AssertionFailure : std::exception {
 private:
-	string _expression;
-	string _fileName;
-	int16_t _line;
+	string failureInfo;
 public:
-	AssertionFailure(string expression, string fileName, int16_t line)
-		: _expression(std::move(expression)), _fileName(std::move(fileName)), _line(line)
+	AssertionFailure(const string &fileName, int16_t line, const string &description, const string &expression)
+		: failureInfo(fileName + ":" + std::to_string(line) + description + '\n' + expression)
 	{}
 
-	string fileName() const
+	const char* what() const noexcept override
 	{
-		return _fileName;
-	}
-
-	int16_t line() const
-	{
-		return _line;
+		return failureInfo.c_str();
 	}
 };
 
@@ -264,6 +278,15 @@ static
 void
 allTest()
 {
+	auto log = [] (const string& exceptionTypeName, const string& exceptionContent, SectionRouteTrack& track) {
+		cout
+			<< "Caught exception of type " << '\'' << exceptionTypeName << '\'' << endl
+			<< exceptionContent << endl
+			<< "Testcase state:" << endl
+			;
+		track.log();
+	};
+
 	for (auto& t : _tests) {
 		Section testFunc(t.first);
 		while (!testFunc.allBranchDone()) { // t is false means t is not complete
@@ -272,11 +295,14 @@ allTest()
 			sectionTrack.pushBack(testFunc.info());
 			try {
 				t.second(Condition(testFunc, onceState, sectionTrack), onceState, sectionTrack);
-			} catch (AssertionFailure& f) {
-				// TODO show failure info
+			} catch (std::exception& e) {
+				log(typeid(e).name(), e.what(), sectionTrack);
+			} catch (int i) {
+				log("int", std::to_string(i), sectionTrack);
 			} catch (...) {
-				// TODO report uncaught exception
-				// __cxa_current_exception_type() – > name()
+				log(DEPEND_ON_COMPILER_SUPPORT(__cxxabiv1::__cxa_current_exception_type()->name(), "Unknown type"),
+					"",
+					sectionTrack);
 			}
 		}
 	}
@@ -289,18 +315,26 @@ allTest()
 
 #define TESTCASE(DESCRIPTION) static RegisterTestCase CAT(testcase, __LINE__) = Combination{Info(__FILE__, __LINE__, DESCRIPTION)} = (TESTCASE_FUNCTION_TYPE)[] (Condition condition, bool& onceState, SectionRouteTrack& track)
 
-// Info should belong to Section
 #define SECTION(DESCRIPTION) static Section CAT(section, __LINE__) { condition, Info(__FILE__, __LINE__, DESCRIPTION)}; if (Condition condition{ CAT(section, __LINE__) , onceState, track})
-// below __FILE__ and __LINE__ maybe used wrong
 
-#define ASSERT(EXP) do { if (!(EXP)) { throw AssertionFailure(#EXP, __FILE__, __LINE__ ); } } while(0)
+#define ASSERT(EXP) 																\
+	do { 																			\
+		if (!(EXP)) { 																\
+			throw AssertionFailure(__FILE__, __LINE__, "ASSERTION FAILED", #EXP);	\
+		} 																			\
+	} while(0)
 
-// how to shouldExecutehrow this exption?
-#define ASSERT_THROW(TYPE, EXP) 	\
-	do {                        	\
-    	try {                   	\
-			(EXP);              	\
-    	} catch (TYPE e) { }    	\
-		  catch (...) { throw; }	\
-		throw;						\
+#define ASSERT_THROW(TYPE, EXP) 														\
+	do {                        														\
+    	try {																			\
+			(EXP);																		\
+    	} catch (TYPE e) { }															\
+		  catch (...) {																	\
+    		throw AssertionFailure(														\
+    			__FILE__, 																\
+    			__LINE__, 																\
+    			string{"Catch a exception but not meet the required type "} + #TYPE, 	\
+    			#EXP);																	\
+    	}																				\
+		throw AssertionFailure(__FILE__, __LINE__, "No exception caught in", #EXP);		\
 	} while(0)
