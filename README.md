@@ -55,7 +55,7 @@ ASSERT_THROW(int, throw 1);
 Material of the main idea How to implement this frame:
 
 1. [How to implement SECTION in Catch](https://zhuanlan.zhihu.com/p/24535431)
-2. [Answer some question](https://zhuanlan.zhihu.com/p/24547564)
+2. [Answer some questions](https://zhuanlan.zhihu.com/p/24547564)
 3. [Another implement](https://zhuanlan.zhihu.com/p/24552354)
 
 ---------
