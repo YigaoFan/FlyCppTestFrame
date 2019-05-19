@@ -4,6 +4,8 @@ A implementation of a C++ test frame like Catch2 usage
 This frame should use like the code below. The good of this framework is that you can freely nest tests. That's very convenient and elegant.
 
 ```c++
+#include "FlyTest.hpp" // include this header file to use
+
 TESTCASE("First TestCase") {
 	// set up code
 	std::vector<int> a{};
