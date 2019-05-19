@@ -29,7 +29,7 @@ TESTCASE("First TestCase") {
 		ASSERT(a.empty());
 	}
  	
-  // some tear down code
+	// some tear down code
 }
 
 // then in your main function, you should call allTest()
