@@ -6,6 +6,7 @@
 #include <tuple>
 #include <iostream>
 #include <utility>
+#include <cstring>
 
 // for unknown exception handle
 #ifdef __clang__
@@ -33,7 +34,7 @@ using std::runtime_error;
 
 class SectionRouteTrack;
 class Condition;
-using TESTCASE_FUNCTION_TYPE = function<void(Condition, bool&, SectionRouteTrack&)>;
+using TESTCASE_FUNCTION_TYPE = function<void(Condition&&, bool&, SectionRouteTrack&, uint16_t&)>;
 struct Info {
 public:
 	string fileName;
@@ -97,7 +98,7 @@ private:
 	static ostream& showSectionInfo(const Info& sectionInfo, ostream& out)
 	{
 		out
-			<< sectionInfo.fileName << ": "
+			<< sectionInfo.fileName << ":"
 			<< sectionInfo.line << ": "
 			<< sectionInfo.description;
 
@@ -116,27 +117,7 @@ public:
 
 	bool shouldExecute()
 	{
-		if (!_selfDone) {
-			return true;
-		} else if (!allBranchDone()){
-			return true;
-		}
-
-		return false;
-	}
-
-	bool allBranchDone() const
-	{
-		if (_subSections.empty()) {
-			return _selfDone;
-		}
-
-		for (auto s : _subSections) {
-			if (!s->allBranchDone()) {
-				return false;
-			}
-		}
-		return true;
+		return !_selfDone;
 	}
 
 	void markDone()
@@ -159,17 +140,20 @@ class Condition {
 private:
 	bool& _state;
 	bool _shouldExecute;
-	bool _allBranchDoneBeforeExecute;
 public:
 	Section& correspondSection;
 	SectionRouteTrack& track;
 
 	Condition(Section& section, bool& state, SectionRouteTrack& track)
-		: _state(state), _shouldExecute(true), _allBranchDoneBeforeExecute(section.allBranchDone()), correspondSection(section), track(track)
+		: _state(state),
+		_shouldExecute(true),
+		correspondSection(section),
+		track(track)
 	{}
 
 	operator bool()
 	{
+		// _state is true, means this run end
 		_shouldExecute = _state ? false : correspondSection.shouldExecute();
 
 		if (_shouldExecute)
@@ -183,36 +167,40 @@ public:
 	~Condition()
 	{
 		if (_shouldExecute) {
-			// means it's leaf
-			if (correspondSection._subSections.empty()) {
+			if (!_state) {
 				correspondSection.markDone();
 				_state = true;
 			}
-			if (!correspondSection._selfDone && _allBranchDoneBeforeExecute) {
-				correspondSection.markDone();
-			}
 
-			if constexpr (__cplusplus == 201703L) {
-				if (std::uncaught_exceptions()) {
-					// stop move mark
-				} else {
-					track.moveBack();
-				}
-			} else if constexpr (__cplusplus >= 201103L) {
-				if (std::uncaught_exception()) {
-					// stop move mark
-				} else {
-					track.moveBack();
-				}
-			} else {
-				// TODO meta-program?
-				// could use macro
-				throw
-					runtime_error
-						("This program require C++ version at least C++11, please update your compiler setting");
-			}
+			// save for remember:
+//			// means it's leaf
+//			if (correspondSection._subSections.empty()) {
+//				correspondSection.markDone();
+//				_state = true;
+//			} else if (!uncaughtException()) { // not a leaf situation
+//				if (!_state) {
+//					correspondSection.markDone();
+//					_state = true;
+//				}
+//			}
 
+			if (!uncaughtException()) {
+				track.moveBack();
+			}
 		}
+	}
+
+private:
+	bool uncaughtException() const
+	{
+		if constexpr (__cplusplus >= 201703L) {
+			return std::uncaught_exceptions() > 0;
+		} else if constexpr (__cplusplus >= 201103L) {
+			return std::uncaught_exception();
+		}
+#if __cplusplus < 201103L
+#error This program requires C++ version at least C++11, please update your compiler setting
+#endif
 	}
 };
 
@@ -223,7 +211,7 @@ inline Section::Section(Condition &condition, Info info)
 	condition.correspondSection._subSections.emplace_back(this);
 }
 
-static vector<pair<Info, TESTCASE_FUNCTION_TYPE>> _tests{};
+static vector<pair<Info, TESTCASE_FUNCTION_TYPE>> _tests_{};
 
 class Combination {
 private:
@@ -256,11 +244,11 @@ class RegisterTestCase {
 public:
 	RegisterTestCase(const Combination& combination)
 	{
-		_tests.emplace_back(make_pair(combination.first(), combination.second()));
+		_tests_.emplace_back(make_pair(combination.first(), combination.second()));
 	}
 };
 
-class AssertionFailure : std::exception {
+class AssertionFailure : public std::exception {
 private:
 	string _failureInfo;
 public:
@@ -278,66 +266,95 @@ static
 void
 allTest()
 {
+	auto& out = cout;
 	auto log = [] (const string& exceptionTypeName, const string& exceptionContent, SectionRouteTrack& track) {
-		cout
+		out
+			<< "\n"
 			<< "Caught exception of type " << '\'' << exceptionTypeName << '\'' << endl
 			<< exceptionContent << endl
 			<< "Testcase state:" << endl
 			;
-		track.log();
+		track.log(0, out);
 	};
 
-	for (auto& t : _tests) {
-		Section testFunc(t.first);
-		while (!testFunc.allBranchDone()) { // t is false means t is not complete
+	for (auto& t : _tests_) {
+		Section testCase(t.first);
+		uint16_t successCount = 0;
+		uint16_t failureCount = 0;
+		out << "Testcase: " << testCase.info().description << endl;
+
+		while (testCase.shouldExecute()) {
 			auto onceState = false;
 			SectionRouteTrack sectionTrack;
-			sectionTrack.pushBack(testFunc.info());
+			sectionTrack.pushBack(testCase.info());
+
 			try {
-				t.second(Condition(testFunc, onceState, sectionTrack), onceState, sectionTrack);
+				t.second(std::move(Condition (testCase, onceState, sectionTrack)), onceState, sectionTrack, successCount);
 			} catch (std::exception& e) {
-				log(string{typeid(e).name()}, string{e.what()}, sectionTrack);
-			} catch (AssertionFailure& e) {
+				++ failureCount;
 				log(string{typeid(e).name()}, string{e.what()}, sectionTrack);
 			} catch (int i) {
+				++ failureCount;
 				log("int", std::to_string(i), sectionTrack);
 			} catch (...) {
+				++ failureCount;
 				log(DEPEND_ON_COMPILER_SUPPORT(__cxxabiv1::__cxa_current_exception_type()->name(), "Unknown type"),
 					"",
 					sectionTrack);
 			}
+			if (!onceState) { // meas onceState not be changed
+				break;
+			}
 		}
+
+		out
+			<< '\n'
+			<< "Result: "
+			<< failureCount << " Failed, "
+			<< successCount << " Passed" << endl;
 	}
 }
-// 我希望一个 TESTCASE 有两个状态，内部有个本次执行完毕的状态，外部有个标识所有 branch 执行完的的状态
-// testFunc.allBranchDone() external state
-// condition internal state
+
+static
+const char *
+justFileName(const char * str)
+{
+	// TODO need to test Windows compatibility
+	return std::strrchr(str, '/') + 1;
+}
+
 #define PRIMITIVE_CAT(A, B) A##B
 #define CAT(A, B) PRIMITIVE_CAT(A, B)
 
-#define TESTCASE(DESCRIPTION) static RegisterTestCase CAT(testcase, __LINE__) = Combination{Info(__FILE__, __LINE__, DESCRIPTION)} = (TESTCASE_FUNCTION_TYPE)[] (Condition condition, bool& onceState, SectionRouteTrack& track)
+#define TESTCASE(DESCRIPTION) 																												\
+	void CAT(testcase, __LINE__) (Condition&& , bool& , SectionRouteTrack&, uint16_t&);																	\
+ 	static RegisterTestCase CAT(registerTestcase, __LINE__) = Combination{Info(justFileName(__FILE__), __LINE__, DESCRIPTION)} = CAT(testcase, __LINE__); \
+	void CAT(testcase, __LINE__) (Condition&& condition, bool& onceState, SectionRouteTrack& track, uint16_t& successCount)
 
-#define SECTION(DESCRIPTION) static Section CAT(section, __LINE__) { condition, Info(__FILE__, __LINE__, DESCRIPTION)}; if (Condition condition{ CAT(section, __LINE__) , onceState, track})
+#define SECTION(DESCRIPTION) static Section CAT(section, __LINE__) { condition, Info(justFileName(__FILE__), __LINE__, DESCRIPTION)};	\
+	if (Condition condition{ CAT(section, __LINE__) , onceState, track})
 
-#define ASSERT(EXP) 																\
-	do { 																			\
-		if (!(EXP)) { 																\
-			throw AssertionFailure(__FILE__, __LINE__, "ASSERTION FAILED", #EXP);	\
-		} 																			\
+#define ASSERT(EXP) 																			\
+	do { 																						\
+		if (!(EXP)) { 																			\
+			throw AssertionFailure(justFileName(__FILE__), __LINE__, "ASSERTION FAILED", #EXP);	\
+		} 																						\
+		++successCount;																			\
 	} while(0)
 
-#define ASSERT_THROW(TYPE, EXP) 														\
-	do {                        														\
-    	try {																			\
-			(EXP);																		\
-			throw AssertionFailure(__FILE__, __LINE__, "No exception caught in", #EXP);	\
-    	} catch (TYPE e) { }															\
-		  catch (AssertionFailure& e) { throw e; }										\
-		  catch (...) {																	\
-    		throw AssertionFailure(														\
-    			__FILE__, 																\
-    			__LINE__, 																\
-    			string{"Catch a exception but not meet the required type: "} + #TYPE, 	\
-    			#EXP);																	\
-    	}																				\
+#define ASSERT_THROW(TYPE, EXP) 																		\
+	do {                        																		\
+    	try {																							\
+			(void)(EXP);																				\
+			throw AssertionFailure(justFileName(__FILE__), __LINE__, "No exception caught in", #EXP);	\
+    	} catch (TYPE e) { }																			\
+		  catch (AssertionFailure& e) { throw e; }														\
+		  catch (...) {																					\
+    		throw AssertionFailure(																		\
+    			justFileName(__FILE__), 																\
+    			__LINE__, 																				\
+    			string{"Catch a exception but not meet the required type: "} + #TYPE, 					\
+    			#EXP);																					\
+    	}																								\
+		++successCount;																			\
 	} while(0)
