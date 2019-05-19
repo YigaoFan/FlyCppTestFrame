@@ -1,9 +1,10 @@
 # FlyCppTestFrame
 A implementation of a C++ test frame like Catch2 usage
 
-This frame should use like the code below. The good of this framework is that you can freely nest tests. That's very convenient and elegant.
+This frame should use like the code below. The good of this framework is that you can freely nest tests. That's very convenient and elegant. It requires C++ 11 and above.
 
 ```c++
+#include <vector>
 #include "FlyTest.hpp" // include this header file to use
 
 TESTCASE("First TestCase") {
@@ -18,7 +19,7 @@ TESTCASE("First TestCase") {
 		ASSERT(a[0] == 1);
 		ASSERT(a[1] == 2);
     
-		// SECTION can nested without limit
+		// SECTION can be nested without limit
 		SECTION("Change element") {
 			a[0] = 3;
 			ASSERT(a[0] == 3);
