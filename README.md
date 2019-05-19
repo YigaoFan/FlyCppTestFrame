@@ -9,19 +9,19 @@ TESTCASE("First TestCase") {
 	std::vector<int> a{};
 	a.push_back(1);
 	
-  // this SECTION will not affect the "Delete element" SECTION
+	// this SECTION will not affect the "Delete element" SECTION
 	SECTION("Add element") {
 		a.push_back(2);
-    // ASSERT(EXP)
+		// ASSERT(EXP)
 		ASSERT(a[0] == 1);
 		ASSERT(a[1] == 2);
     
-    // SECTION can nested without limit
-    SECTION("Change element") {
-      a[0] = 3;
-      ASSERT(a[0] == 3);
-      ASSERT(a[1] == 2);
-    }
+		// SECTION can nested without limit
+		SECTION("Change element") {
+			a[0] = 3;
+			ASSERT(a[0] == 3);
+			ASSERT(a[1] == 2);
+		}
 	}
 	
 	SECTION("Delete element") {
@@ -36,9 +36,9 @@ TESTCASE("First TestCase") {
 int
 main()
 {
-  allTest();
-  
-  return 0;
+	allTest();
+	
+	return 0;
 }
 ```
 
