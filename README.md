@@ -64,7 +64,7 @@ Material of the main idea How to implement this frame:
 
 这是一份可以使用 Catch2 部分用法的测试框架。
 
-这个需要像下面的代码这样使用。这个框架好的地方在于你可以自由的嵌套测试，当然这也是 Catch 框架的优点。你知道的，在测试中通常是有些前置条件需要去构造。有时他们是重复。这非常的方便和优雅。然后，这个框架对 C++ 版本的要求是至少是 C++11（待验证）。
+这个框架需要像下面的代码这样使用。这个框架好的地方在于你可以自由的嵌套测试代码，当然这也是 Catch 框架的优点。你知道的，在测试中通常是有些前置条件需要去构造。有时他们是重复。这样使用非常的方便和优雅。然后，这个框架对 C++ 版本的要求是至少是 C++11（待验证）。
 
 ```c++
 #include <vector>
@@ -75,7 +75,7 @@ TESTCASE("First TestCase") {
 	std::vector<int> a{};
 	a.push_back(1);
 
-	// this SECTION will not affect the "Delete element" SECTION
+	// 这个 SECTION 的代码不会影响下面的 "Delete element" SECTION
 	SECTION("Add element") {
 		a.push_back(2);
 		// ASSERT(EXP)
