@@ -52,7 +52,6 @@ class SectionRouteTrack {
 private:
 	vector<Info> _route{};
 	int16_t _currentSectionIndex = -1;
-//	bool _currentSectionValid{ false };
 public:
 	SectionRouteTrack() = default;
 
@@ -193,12 +192,11 @@ public:
 private:
 	bool uncaughtException() const
 	{
-		if constexpr (__cplusplus >= 201703L) {
-			return std::uncaught_exceptions() > 0;
-		} else if constexpr (__cplusplus >= 201103L) {
-			return std::uncaught_exception();
-		}
-#if __cplusplus < 201103L
+#if __cplusplus >= 201703L
+		return std::uncaught_exceptions() > 0;
+#elif __cplusplus >= 201103L
+		return std::uncaught_exception();
+#else
 #error This program requires C++ version at least C++11, please update your compiler setting
 #endif
 	}
@@ -311,7 +309,7 @@ allTest()
 			<< '\n'
 			<< "Result: "
 			<< failureCount << " Failed, "
-			<< successCount << " Passed" << endl;
+			<< successCount << " Passed\n" << endl;
 	}
 }
 
@@ -347,7 +345,7 @@ justFileName(const char * str)
     	try {																							\
 			(void)(EXP);																				\
 			throw AssertionFailure(justFileName(__FILE__), __LINE__, "No exception caught in", #EXP);	\
-    	} catch (TYPE e) { }																			\
+    	} catch (TYPE& e) { }																			\
 		  catch (AssertionFailure& e) { throw e; }														\
 		  catch (...) {																					\
     		throw AssertionFailure(																		\
