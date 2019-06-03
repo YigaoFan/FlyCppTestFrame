@@ -7,7 +7,6 @@
 #include <iostream>
 #include <utility>
 #include <cstring>
-#include <typeinfo>
 // for unknown exception handle
 #ifdef __clang__
 #include "cxxabi.h"
