@@ -31,7 +31,6 @@ namespace {
 	using ::std::flush;
 	using ::std::function;
 	using ::std::runtime_error;
-//	using ::std::type_info;
 
 	class SectionRouteTrack;
 
@@ -60,7 +59,7 @@ namespace {
 
 		SectionRouteTrack &pushBack(Info info) {
 			_route.emplace_back(::std::move(info));
-			_currentSectionIndex = _route.size() - 1;
+			_currentSectionIndex = _route.size() - 1; // TODO use a cast to solve this problem
 
 			return *this;
 		}
@@ -74,7 +73,7 @@ namespace {
 				throw runtime_error("Wrong invoke log, only need to call log when SECTION doesn't exit normally");
 			}
 
-			for (auto i = 0; i < _route.size(); ++i) {
+			for (size_t i = 0; i < _route.size(); ++i) {
 				showNSpace(initialIndent, out);
 				if (i == _currentSectionIndex) {
 					out << "-> ";
@@ -189,6 +188,9 @@ namespace {
 #elif __cplusplus >= 201103L
 			return ::std::uncaught_exception();
 #else
+// TODO remember update framework code
+// If you use VS2017 encounter this problem that should not occur
+//, you could add an addtional command line arg in [Project Properties]->[C/C++]->[Command Line]->[Additional Options]: /Zc:__cplusplus
 #error This program requires C++ version at least C++11, please update your compiler setting
 #endif
 		}
@@ -248,7 +250,7 @@ namespace {
 	void
 	allTest() {
 		auto &out = cout;
-		auto log = [](const string &exceptionTypeName, const string &exceptionContent, SectionRouteTrack &track) {
+		auto log = [&](const string &exceptionTypeName, const string &exceptionContent, SectionRouteTrack &track) {
 			out
 				<< "\n"
 				<< "Caught exception of type " << '\'' << exceptionTypeName << '\'' << endl
@@ -327,7 +329,7 @@ namespace {
         try {                                                                                        \
             (void)(EXP);                                                                             \
             throw AssertionFailure(justFileName(__FILE__), __LINE__, "No exception caught in", #EXP);\
-        } catch (TYPE& e) { }                                                                        \
+        } catch (TYPE&) { }                                                                        \
           catch (AssertionFailure& e) { throw e; }                                                   \
           catch (...) {                                                                              \
             throw AssertionFailure(                                                                  \
