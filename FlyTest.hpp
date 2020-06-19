@@ -112,7 +112,7 @@ namespace
 	private:
 		friend class Condition;
 		bool _selfDone{ false };
-		vector<Section*> _subSections{};
+		vector<Section*> _subSections;
 		Info _info;
 
 	public:
@@ -121,6 +121,7 @@ namespace
 		bool shouldExecute() { return !_selfDone; }
 		void markDone() { _selfDone = true; }
 		Info info() const { return _info; }
+		void freeHeapMemory() { _subSections.clear(); }
 	};
 
 	class Condition
@@ -157,6 +158,7 @@ namespace
 				if (!_state)
 				{
 					correspondSection.markDone();
+					correspondSection.freeHeapMemory();
 					_state = true;
 				}
 
@@ -269,14 +271,20 @@ namespace
 #define PRIMITIVE_CAT(A, B) A##B
 #define CAT(A, B) PRIMITIVE_CAT(A, B)
 
-#define TESTCASE(DESCRIPTION)                                                                                                                                          \
-    void CAT(testcase, __LINE__) (Condition&& , bool& , SectionRouteTrack&, size_t&);                                                                                   \
+#define TESTCASE(DESCRIPTION)                                                                                                            \
+    void CAT(testcase, __LINE__) (Condition&& , bool& , SectionRouteTrack&, size_t&);                                                    \
     RegisterTestCase CAT(registerTestcase, __LINE__) { make_pair<Info, TestCaseFunction>(Info(getFileName(__FILE__), __LINE__, DESCRIPTION), CAT(testcase, __LINE__)) }; \
     void CAT(testcase, __LINE__) (Condition&& condition, bool& onceState, SectionRouteTrack& track, size_t& successCount)
 
-#define SECTION(DESCRIPTION) \
+#define SECTION_1(DESCRIPTION) \
 	static Section CAT(section, __LINE__) { condition, Info(getFileName(__FILE__), __LINE__, DESCRIPTION) }; \
-    if (Condition condition{ CAT(section, __LINE__), onceState, track })
+	if (Condition condition{ CAT(section, __LINE__), onceState, track })
+
+#define EXPAND(X) X
+#define SECTION_2(DESCRIPTION, SKIP) if constexpr (false)
+#define GET_3RD_ARG(ARG1, ARG2, ARG3, ...) ARG3
+#define SECTION_MACRO_CHOOSER(...) EXPAND(GET_3RD_ARG(__VA_ARGS__, SECTION_2, SECTION_1,))
+#define SECTION(...) EXPAND(SECTION_MACRO_CHOOSER(__VA_ARGS__)(__VA_ARGS__))
 
 #define ASSERT(EXP)                                                                            \
     do {                                                                                       \
@@ -302,3 +310,5 @@ namespace
         }                                                                                            \
         ++successCount;                                                                              \
     } while(0)
+
+#define D(var) ::std::cout << #var << ": "<< var << endl
