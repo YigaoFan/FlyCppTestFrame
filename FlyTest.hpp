@@ -312,3 +312,14 @@ namespace
     } while(0)
 
 #define D(var) ::std::cout << #var << ": "<< var << endl
+
+#define DEF_TEST_FUNC(FUNC_NAME) \
+void FUNC_NAME(bool executed)    \
+{                                \
+	if (executed)                \
+	{                            \
+		allTest();               \
+	}                            \
+                                 \
+	_tests_.clear();             \
+}
